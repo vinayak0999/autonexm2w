@@ -24,19 +24,27 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
-# CORS Configuration - Use environment variable for frontend URL
-# Set FRONTEND_URL in Railway to your deployed frontend URL
-frontend_url = os.getenv("FRONTEND_URL", "*")
-allowed_origins = [frontend_url] if frontend_url != "*" else ["*"]
+# CORS Configuration
+# Set FRONTEND_URL in Railway (can be comma-separated for multiple origins)
+frontend_url = os.getenv("FRONTEND_URL", "")
+if frontend_url:
+    # Support comma-separated origins
+    allowed_origins = [url.strip() for url in frontend_url.split(",")]
+    allow_credentials = True
+else:
+    # Development mode - allow all
+    allowed_origins = ["*"]
+    allow_credentials = False  # Can't use credentials with wildcard
 
 # Enable CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_credentials=allow_credentials,
+    allow_methods=["*"],  # Allow all methods including OPTIONS
     allow_headers=["*"],
 )
+
 
 
 # ============== CONSTANTS ============== #
