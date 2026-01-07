@@ -27,6 +27,8 @@ app = FastAPI()
 # CORS Configuration
 # Set FRONTEND_URL in Railway (can be comma-separated for multiple origins)
 frontend_url = os.getenv("FRONTEND_URL", "")
+print(f"[CORS DEBUG] FRONTEND_URL env: {frontend_url}")
+
 if frontend_url:
     # Support comma-separated origins
     allowed_origins = [url.strip() for url in frontend_url.split(",")]
@@ -35,6 +37,9 @@ else:
     # Development mode - allow all
     allowed_origins = ["*"]
     allow_credentials = False  # Can't use credentials with wildcard
+
+print(f"[CORS DEBUG] Allowed origins: {allowed_origins}")
+print(f"[CORS DEBUG] Allow credentials: {allow_credentials}")
 
 # Enable CORS
 app.add_middleware(
@@ -45,10 +50,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
+# Health check endpoint
+@app.get("/")
+def health_check():
+    return {
+        "status": "ok",
+        "cors_origins": allowed_origins,
+        "cors_credentials": allow_credentials,
+        "frontend_url_env": frontend_url or "NOT SET"
+    }
 
 # ============== CONSTANTS ============== #
 GENERAL_INSTRUCTION = "Solve the task and write the task status, task explanation, and critical error if task is failure."
+
 
 # ============== ADMIN ENDPOINTS ============== #
 
