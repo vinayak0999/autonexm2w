@@ -1,7 +1,13 @@
 from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Text, JSON, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from .database import Base
+
+# Handle imports for both local development and deployment
+try:
+    from .database import Base
+except ImportError:
+    from database import Base
+
 
 # 1. User Model (Email + Password)
 class User(Base):
