@@ -24,14 +24,20 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
-# Enable CORS with optimized settings
+# CORS Configuration - Use environment variable for frontend URL
+# Set FRONTEND_URL in Railway to your deployed frontend URL
+frontend_url = os.getenv("FRONTEND_URL", "*")
+allowed_origins = [frontend_url] if frontend_url != "*" else ["*"]
+
+# Enable CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Specific methods
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+
 
 # ============== CONSTANTS ============== #
 GENERAL_INSTRUCTION = "Solve the task and write the task status, task explanation, and critical error if task is failure."
