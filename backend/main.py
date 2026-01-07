@@ -8,9 +8,16 @@ import pandas as pd
 import os
 import shutil
 
-from . import models, schemas
-from .database import engine, get_db, SessionLocal
-from .password_utils import verify_password
+# Handle imports for both local development and deployment
+try:
+    from . import models, schemas
+    from .database import engine, get_db, SessionLocal
+    from .password_utils import verify_password
+except ImportError:
+    import models, schemas
+    from database import engine, get_db, SessionLocal
+    from password_utils import verify_password
+
 
 # Create Tables
 models.Base.metadata.create_all(bind=engine)
@@ -345,11 +352,18 @@ def get_user_report(session_id: int, db: Session = Depends(get_db)):
     }
 
 # --- ADMIN: 7. TRIGGER AI EVALUATION (BACKGROUND TASK) ---
-from .ai_agent import evaluate_single_answer
+try:
+    from .ai_agent import evaluate_single_answer
+except ImportError:
+    from ai_agent import evaluate_single_answer
 
 def run_evaluation_loop(session_id: int):
-    from .database import SessionLocal
+    try:
+        from .database import SessionLocal
+    except ImportError:
+        from database import SessionLocal
     db = SessionLocal()
+
     try:
         # Optimized: Single query with JOIN (fixed N+1)
         responses = db.query(

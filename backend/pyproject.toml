@@ -1,0 +1,7 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+
+[project]
+name = "ai-test-platform"
+version = "1.0.0"
+requires-python = ">=3.9"
