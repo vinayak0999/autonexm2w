@@ -554,13 +554,40 @@ def submit_answer(session_id: int, answer: schemas.AnswerSubmit, db: Session = D
     # Get session
     session = db.query(models.TestSession).filter(models.TestSession.id == session_id).first()
     
-    if not session or session.is_completed:
+    if not session:
         raise HTTPException(status_code=400, detail="Invalid session")
+    
+    if session.is_completed:
+        raise HTTPException(status_code=400, detail="Test is already completed")
+
+    # Handle edge case: index out of bounds
+    if session.current_index >= len(session.question_order):
+        session.is_completed = True
+        db.commit()
+        raise HTTPException(status_code=400, detail="Test is already completed")
 
     expected_q_id = session.question_order[session.current_index]
     
+    # Check if this answer was already submitted (duplicate request)
+    existing_response = db.query(models.UserResponse).filter(
+        models.UserResponse.session_id == session.id,
+        models.UserResponse.question_id == answer.question_id
+    ).first()
+    
+    if existing_response:
+        # Already submitted - just return success to prevent duplicate error
+        return {
+            "message": "Answer already saved",
+            "next_index": session.current_index,
+            "expected_question_id": expected_q_id
+        }
+    
     if answer.question_id != expected_q_id:
-        raise HTTPException(status_code=400, detail="Sync Error. You are answering the wrong question.")
+        # Return the expected question ID so frontend can resync
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Sync Error. Expected question {expected_q_id}, got {answer.question_id}. Please refresh."
+        )
 
     # Save answer
     new_response = models.UserResponse(
@@ -579,4 +606,16 @@ def submit_answer(session_id: int, answer: schemas.AnswerSubmit, db: Session = D
         session.is_completed = True
     
     db.commit()
-    return {"message": "Answer saved", "next_index": session.current_index}
+    
+    # Return next expected question ID for frontend sync
+    next_expected_q_id = None
+    if session.current_index < len(session.question_order):
+        next_expected_q_id = session.question_order[session.current_index]
+    
+    return {
+        "message": "Answer saved",
+        "next_index": session.current_index,
+        "is_completed": session.is_completed,
+        "next_expected_question_id": next_expected_q_id
+    }
+
