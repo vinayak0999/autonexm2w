@@ -96,6 +96,34 @@ const TestInterface = () => {
         }
     }, [sessionId, statusState]);
 
+    // Auto-submit current answer when time runs out (only if required fields are filled)
+    const autoSubmitOnTimeUp = useCallback(async () => {
+        // Check if we have a question loaded and required fields are filled
+        if (!question || !sessionId) return;
+
+        const hasStatus = formData.status; // Required
+        const hasExplanation = formData.explanation.trim(); // Required
+
+        // Only submit if required fields (*) are filled
+        if (hasStatus && hasExplanation) {
+            console.log("Time's up! Auto-submitting current answer...");
+            try {
+                await api.post(`/session/${sessionId}/submit`, {
+                    question_id: question.id,
+                    status: formData.status,
+                    explanation: formData.explanation.trim(),
+                    critical_error: formData.criticalError.trim() || "None"
+                });
+                console.log("Auto-submit successful!");
+            } catch (err) {
+                console.error("Auto-submit failed:", err);
+                // Continue anyway - we'll mark test as complete
+            }
+        } else {
+            console.log("Time's up! Current answer incomplete (missing required fields), skipping auto-submit.");
+        }
+    }, [question, sessionId, formData]);
+
     // Initialize timer with server time
     const initializeTimer = useCallback(async () => {
         if (!sessionId) return;
@@ -126,7 +154,7 @@ const TestInterface = () => {
             }
 
             // Set up interval
-            timerIntervalRef.current = setInterval(() => {
+            timerIntervalRef.current = setInterval(async () => {
                 const currentTime = Date.now();
                 const remaining = endTimeRef.current - currentTime;
 
@@ -134,6 +162,10 @@ const TestInterface = () => {
                     clearInterval(timerIntervalRef.current);
                     timerIntervalRef.current = null;
                     setTimeLeft(0);
+
+                    // Auto-submit current answer if required fields are filled
+                    await autoSubmitOnTimeUp();
+
                     setStatusState('time_up');
                     dispatch(completeTest());
                 } else {
@@ -143,6 +175,7 @@ const TestInterface = () => {
 
             setTimerError(false);
         } catch (err) {
+
             console.error("Timer initialization error:", err);
             if (err.response?.status === 404) {
                 setStatusState('session_expired');
@@ -152,7 +185,7 @@ const TestInterface = () => {
                 setTimeout(() => initializeTimer(), 5000);
             }
         }
-    }, [sessionId, dispatch]);
+    }, [sessionId, dispatch, autoSubmitOnTimeUp]);
 
     // Initialize timer on mount
     useEffect(() => {
@@ -492,8 +525,8 @@ const TestInterface = () => {
                             onClick={handleSubmit}
                             disabled={submitting || networkError}
                             className={`w-full py-4 rounded-lg font-bold transition flex items-center justify-center gap-2 shadow-lg ${submitting || networkError
-                                    ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                                    : 'bg-gray-900 text-white hover:bg-gray-800'
+                                ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                                : 'bg-gray-900 text-white hover:bg-gray-800'
                                 }`}
                         >
                             {submitting ? (

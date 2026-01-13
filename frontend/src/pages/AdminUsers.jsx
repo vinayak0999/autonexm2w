@@ -237,7 +237,7 @@ const AdminUsers = () => {
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
                                     {filteredUsers.map((u, idx) => (
-                                        <tr key={u.id} className="hover:bg-emerald-50/50 transition">
+                                        <tr key={`${u.id}-${u.session_id || 'no-session'}`} className="hover:bg-emerald-50/50 transition">
                                             <td className="p-4 text-gray-400">{idx + 1}</td>
                                             <td className="p-4">
                                                 <div className="flex items-center gap-3">
