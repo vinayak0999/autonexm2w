@@ -124,7 +124,7 @@ const UserReport = () => {
                     <div key={ans.question_id} className="bg-white border border-emerald-100 rounded-2xl overflow-hidden shadow-lg">
                         {/* Header: Task Info */}
                         <div className="bg-gray-50 px-6 py-4 border-b border-gray-100 flex justify-between items-center">
-                            <span className="font-bold text-gray-800">Task #{ans.question_id}</span>
+                            <span className="font-bold text-gray-800">Task #{ans.task_id || ans.question_id}</span>
                             <a
                                 href={ans.link}
                                 target="_blank"

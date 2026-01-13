@@ -319,10 +319,20 @@ async def upload_ideal_answers(test_id: int, file: UploadFile = File(...), db: S
         updated_count = 0
         not_found = []
         
+        print(f"[DEBUG] Processing {len(df)} rows for test_id={test_id}")
+        
         for _, row in df.iterrows():
-            task_id = str(row['task_id']) if pd.notna(row.get('task_id')) else None
-            if not task_id:
+            raw_task_id = row.get('task_id')
+            # Handle float values from Excel (246.0 -> "246")
+            if pd.notna(raw_task_id):
+                if isinstance(raw_task_id, float):
+                    task_id = str(int(raw_task_id))  # Convert 246.0 to "246"
+                else:
+                    task_id = str(raw_task_id).strip()
+            else:
                 continue
+            
+            print(f"[DEBUG] Looking for task_id='{task_id}' in test_id={test_id}")
             
             # Find the question by task_id and test_id
             question = db.query(models.Question).filter(
@@ -331,12 +341,14 @@ async def upload_ideal_answers(test_id: int, file: UploadFile = File(...), db: S
             ).first()
             
             if question:
+                print(f"[DEBUG] FOUND question {question.id} for task_id='{task_id}'")
                 # Update ideal fields
                 question.ideal_status = str(row.get('ideal_status', '')) if pd.notna(row.get('ideal_status')) else ''
                 question.ideal_explanation = str(row.get('ideal_explanation', '')) if pd.notna(row.get('ideal_explanation')) else ''
                 question.ideal_error = str(row.get('ideal_error', '')) if pd.notna(row.get('ideal_error')) else ''
                 updated_count += 1
             else:
+                print(f"[DEBUG] NOT FOUND task_id='{task_id}' in test_id={test_id}")
                 not_found.append(task_id)
         
         db.commit()
@@ -354,6 +366,51 @@ async def upload_ideal_answers(test_id: int, file: UploadFile = File(...), db: S
     finally:
         if os.path.exists(temp_file):
             os.remove(temp_file)
+
+# --- ADMIN: 3.3 VIEW IDEAL ANSWERS FOR A TEST ---
+@app.get("/admin/test/{test_id}/ideal-answers")
+def get_ideal_answers(test_id: int, db: Session = Depends(get_db)):
+    """Get all ideal answers for questions in this test."""
+    questions = db.query(
+        models.Question.id,
+        models.Question.task_id,
+        models.Question.link,
+        models.Question.ideal_status,
+        models.Question.ideal_explanation,
+        models.Question.ideal_error
+    ).filter(
+        models.Question.test_id == test_id
+    ).all()
+    
+    return [
+        {
+            "id": q.id,
+            "task_id": q.task_id,
+            "link": q.link,
+            "ideal_status": q.ideal_status or "",
+            "ideal_explanation": q.ideal_explanation or "",
+            "ideal_error": q.ideal_error or "",
+            "has_ideal": bool(q.ideal_status)  # Easy check if ideal answer exists
+        }
+        for q in questions
+    ]
+
+# --- ADMIN: 3.4 DELETE/CLEAR IDEAL ANSWERS FOR A TEST ---
+@app.delete("/admin/test/{test_id}/ideal-answers")
+def delete_ideal_answers(test_id: int, db: Session = Depends(get_db)):
+    """Clear all ideal answers for questions in this test (does not delete questions)."""
+    # Update all questions in this test to clear ideal fields
+    updated = db.query(models.Question).filter(
+        models.Question.test_id == test_id
+    ).update({
+        models.Question.ideal_status: None,
+        models.Question.ideal_explanation: None,
+        models.Question.ideal_error: None
+    }, synchronize_session=False)
+    
+    db.commit()
+    
+    return {"message": f"Cleared ideal answers for {updated} questions in this test"}
 
 # --- ADMIN: 4. VIEW RESULTS ---
 @app.get("/admin/test/{test_id}/results")
@@ -442,6 +499,7 @@ def get_user_report(session_id: int, db: Session = Depends(get_db)):
         models.UserResponse.ai_score,
         models.UserResponse.ai_feedback,
         models.Question.id.label('question_id'),
+        models.Question.task_id,
         models.Question.link,
         models.Question.description,
         models.Question.ideal_status,
@@ -455,6 +513,7 @@ def get_user_report(session_id: int, db: Session = Depends(get_db)):
         "answers": [
             {
                 "question_id": r.question_id,
+                "task_id": r.task_id,
                 "link": r.link,
                 "description": r.description,
                 "user_status": r.status,

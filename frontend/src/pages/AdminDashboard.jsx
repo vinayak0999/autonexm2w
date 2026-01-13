@@ -4,7 +4,7 @@ import api from '../api';
 import {
     Plus, Upload, FileText, Users, Link, X, BarChart, LogOut, Trash2,
     Power, Eye, CheckCircle, Clock, HelpCircle, ChevronDown, ChevronUp,
-    FileSpreadsheet, AlertTriangle, Activity, Layers, Award, Edit, Target
+    FileSpreadsheet, AlertTriangle, Activity, Layers, Award, Edit, Target, Download
 } from 'lucide-react';
 import { useDispatch } from 'react-redux';
 import { logout } from '../store';
@@ -19,6 +19,8 @@ const AdminDashboard = () => {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
     const [showEditModal, setShowEditModal] = useState(false);
     const [showIdealAnswerModal, setShowIdealAnswerModal] = useState(false);
+    const [showViewIdealModal, setShowViewIdealModal] = useState(false);
+    const [idealAnswers, setIdealAnswers] = useState([]);
     const [selectedTest, setSelectedTest] = useState(null);
     const [questions, setQuestions] = useState([]);
     const [results, setResults] = useState([]);
@@ -152,6 +154,55 @@ const AdminDashboard = () => {
         } finally {
             setUploading(false);
             e.target.value = '';
+        }
+    };
+
+    // Download Sample Ideal Answers Excel
+    const downloadSampleIdealAnswersExcel = () => {
+        const csvContent = `task_id,ideal_status,ideal_explanation,ideal_error
+TASK001,Success,The model correctly identified all elements and produced accurate output.,
+TASK002,Failure,The model missed key requirements and produced incorrect results.,Critical: Model hallucinated non-existent data
+TASK003,Success,Output matches expected behavior with minor formatting differences.,`;
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'ideal_answers_sample.csv';
+        link.click();
+        URL.revokeObjectURL(link.href);
+    };
+
+    // View Ideal Answers for a test
+    const handleViewIdealAnswers = async (test) => {
+        setSelectedTest(test);
+        setActionLoading(`view-ideal-${test.id}`);
+        try {
+            const res = await api.get(`/admin/test/${test.id}/ideal-answers`);
+            setIdealAnswers(res.data);
+            setShowViewIdealModal(true);
+        } catch (err) {
+            alert("Failed to load ideal answers");
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    // Delete all ideal answers for a test
+    const handleDeleteIdealAnswers = async () => {
+        if (!confirm(`Are you sure you want to clear all ideal answers for "${selectedTest?.title}"? This cannot be undone.`)) {
+            return;
+        }
+        setActionLoading('delete-ideal');
+        try {
+            const res = await api.delete(`/admin/test/${selectedTest.id}/ideal-answers`);
+            alert(res.data.message);
+            // Refresh the list
+            const updated = await api.get(`/admin/test/${selectedTest.id}/ideal-answers`);
+            setIdealAnswers(updated.data);
+        } catch (err) {
+            alert("Failed to delete ideal answers");
+        } finally {
+            setActionLoading(null);
         }
     };
 
@@ -410,8 +461,17 @@ const AdminDashboard = () => {
                                     <button
                                         onClick={() => { setSelectedTest(test); setShowIdealAnswerModal(true); }}
                                         className="flex items-center gap-2 px-4 py-2 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg text-sm font-medium transition"
+                                        title="Upload Ideal Answers"
                                     >
-                                        <Target className="w-4 h-4" /> Ideal Answers
+                                        <Target className="w-4 h-4" /> Upload Ideal
+                                    </button>
+                                    <button
+                                        onClick={() => handleViewIdealAnswers(test)}
+                                        disabled={actionLoading === `view-ideal-${test.id}`}
+                                        className="flex items-center gap-2 px-4 py-2 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-lg text-sm font-medium transition disabled:opacity-50"
+                                        title="View Ideal Answers"
+                                    >
+                                        <Eye className="w-4 h-4" /> View Ideal
                                     </button>
                                     <button
                                         onClick={() => handleEditTest(test)}
@@ -799,6 +859,12 @@ const AdminDashboard = () => {
                             <li><strong>ideal_explanation</strong> (optional) - explanation</li>
                             <li><strong>ideal_error</strong> (optional) - critical error</li>
                         </ul>
+                        <button
+                            onClick={downloadSampleIdealAnswersExcel}
+                            className="w-full mb-4 flex items-center justify-center gap-2 px-4 py-2.5 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-xl text-sm font-medium transition"
+                        >
+                            <Download className="w-4 h-4" /> Download Sample Template
+                        </button>
                         <div className="border-2 border-dashed border-purple-200 rounded-xl p-6 bg-purple-50/50 hover:bg-purple-100/50 transition cursor-pointer text-center">
                             <input
                                 type="file"
@@ -822,6 +888,81 @@ const AdminDashboard = () => {
                         <p className="text-xs text-center text-gray-400 mt-4">
                             For test: <strong>{selectedTest?.title}</strong>
                         </p>
+                    </div>
+                </div>
+            )}
+
+            {/* View Ideal Answers Modal */}
+            {showViewIdealModal && (
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white border border-indigo-100 rounded-2xl p-6 w-full max-w-4xl shadow-2xl max-h-[80vh] overflow-hidden flex flex-col">
+                        <div className="flex items-center justify-between mb-4">
+                            <div>
+                                <h3 className="text-xl font-bold text-gray-800">Ideal Answers</h3>
+                                <p className="text-sm text-gray-500">Test: {selectedTest?.title}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={handleDeleteIdealAnswers}
+                                    disabled={actionLoading === 'delete-ideal'}
+                                    className="flex items-center gap-2 px-3 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-sm font-medium transition disabled:opacity-50"
+                                >
+                                    <Trash2 className="w-4 h-4" /> Clear All
+                                </button>
+                                <button onClick={() => setShowViewIdealModal(false)} className="text-gray-400 hover:text-gray-600">
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="flex-1 overflow-auto">
+                            {idealAnswers.length === 0 ? (
+                                <div className="text-center py-12 text-gray-400">
+                                    <Target className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                                    <p>No questions found for this test</p>
+                                </div>
+                            ) : (
+                                <table className="w-full text-sm">
+                                    <thead className="bg-indigo-50 sticky top-0">
+                                        <tr>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Task ID</th>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Explanation</th>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Error</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                        {idealAnswers.map(item => (
+                                            <tr key={item.id} className={item.has_ideal ? 'bg-white' : 'bg-gray-50'}>
+                                                <td className="px-3 py-2 font-mono text-gray-800">{item.task_id || '-'}</td>
+                                                <td className="px-3 py-2">
+                                                    {item.has_ideal ? (
+                                                        <span className={`px-2 py-1 rounded text-xs font-medium ${item.ideal_status === 'Success'
+                                                                ? 'bg-emerald-100 text-emerald-700'
+                                                                : 'bg-red-100 text-red-700'
+                                                            }`}>
+                                                            {item.ideal_status}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-gray-400 text-xs">Not set</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-3 py-2 text-gray-600 max-w-xs truncate" title={item.ideal_explanation}>
+                                                    {item.ideal_explanation || <span className="text-gray-300">-</span>}
+                                                </td>
+                                                <td className="px-3 py-2 text-red-600 max-w-xs truncate" title={item.ideal_error}>
+                                                    {item.ideal_error || <span className="text-gray-300">-</span>}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
+
+                        <div className="mt-4 pt-4 border-t border-gray-100 text-xs text-gray-400 text-center">
+                            {idealAnswers.filter(a => a.has_ideal).length} of {idealAnswers.length} questions have ideal answers
+                        </div>
                     </div>
                 </div>
             )}
