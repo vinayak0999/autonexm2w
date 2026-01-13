@@ -76,7 +76,7 @@ const UserReport = () => {
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
                             <button
-                                onClick={() => navigate('/admin/users')}
+                                onClick={() => navigate(-1)}
                                 className="p-2 text-gray-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition"
                             >
                                 <ArrowLeft className="w-5 h-5" />

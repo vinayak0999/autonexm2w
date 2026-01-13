@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../api';
 import { User, Users, CheckCircle, Clock, LogOut, Eye, ArrowLeft, Layers, ChevronDown, Filter } from 'lucide-react';
 import { useDispatch } from 'react-redux';
@@ -8,11 +8,23 @@ import { logout } from '../store';
 const AdminUsers = () => {
     const [users, setUsers] = useState([]);
     const [tests, setTests] = useState([]);
-    const [selectedTestId, setSelectedTestId] = useState('all');
     const [loading, setLoading] = useState(true);
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const navigate = useNavigate();
     const dispatch = useDispatch();
+
+    // Use URL params to persist filter across navigation
+    const [searchParams, setSearchParams] = useSearchParams();
+    const selectedTestId = searchParams.get('test') || 'all';
+
+    const setSelectedTestId = (testId) => {
+        if (testId === 'all') {
+            searchParams.delete('test');
+        } else {
+            searchParams.set('test', testId);
+        }
+        setSearchParams(searchParams);
+    };
 
     useEffect(() => {
         fetchData();
