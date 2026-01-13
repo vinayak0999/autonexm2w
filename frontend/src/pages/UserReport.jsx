@@ -106,8 +106,8 @@ const UserReport = () => {
                                 onClick={handleEvaluate}
                                 disabled={evaluating}
                                 className={`flex items-center gap-2 px-6 py-2 rounded-lg font-medium shadow-lg transition ${evaluating
-                                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                        : 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-emerald-500/25'
+                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                    : 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-emerald-500/25'
                                     }`}
                             >
                                 <Play className="w-4 h-4" />
@@ -120,8 +120,8 @@ const UserReport = () => {
 
             {/* Answers List */}
             <main className="max-w-5xl mx-auto p-8 space-y-6">
-                {report?.answers?.map((ans, idx) => (
-                    <div key={idx} className="bg-white border border-emerald-100 rounded-2xl overflow-hidden shadow-lg">
+                {report?.answers?.map((ans) => (
+                    <div key={ans.question_id} className="bg-white border border-emerald-100 rounded-2xl overflow-hidden shadow-lg">
                         {/* Header: Task Info */}
                         <div className="bg-gray-50 px-6 py-4 border-b border-gray-100 flex justify-between items-center">
                             <span className="font-bold text-gray-800">Task #{ans.question_id}</span>
@@ -142,8 +142,8 @@ const UserReport = () => {
 
                                 <div>
                                     <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${ans.user_status === 'Success'
-                                            ? 'bg-emerald-100 text-emerald-700'
-                                            : 'bg-red-100 text-red-600'
+                                        ? 'bg-emerald-100 text-emerald-700'
+                                        : 'bg-red-100 text-red-600'
                                         }`}>
                                         {ans.user_status === 'Success'
                                             ? <CheckCircle className="w-3 h-3" />
