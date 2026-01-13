@@ -173,7 +173,36 @@ def delete_test(test_id: int, db: Session = Depends(get_db)):
     return {"message": f"Test '{title}' deleted"}
 
 
-# --- ADMIN: 2.4 GET TEST QUESTIONS ---
+# --- ADMIN: 2.4 UPDATE TEST ---
+@app.put("/admin/test/{test_id}")
+def update_test(test_id: int, test_data: schemas.TestCreate, db: Session = Depends(get_db)):
+    test = db.query(models.Test).filter(models.Test.id == test_id).first()
+    if not test:
+        raise HTTPException(status_code=404, detail="Test not found")
+    
+    # Update fields
+    if test_data.title:
+        test.title = test_data.title
+    if test_data.duration_minutes:
+        test.duration_minutes = test_data.duration_minutes
+    if test_data.description is not None:
+        test.description = test_data.description
+    
+    db.commit()
+    db.refresh(test)
+    
+    return {
+        "message": "Test updated",
+        "test": {
+            "id": test.id,
+            "title": test.title,
+            "duration_minutes": test.duration_minutes,
+            "description": test.description
+        }
+    }
+
+
+# --- ADMIN: 2.5 GET TEST QUESTIONS ---
 @app.get("/admin/test/{test_id}/questions")
 def get_test_questions(test_id: int, db: Session = Depends(get_db)):
     # Only select needed columns
@@ -264,6 +293,67 @@ def add_single_question(test_id: int, question_data: SingleQuestionAdd, db: Sess
     db.add(new_question)
     db.commit()
     return {"message": "Question added", "question_id": new_question.id}
+
+# --- ADMIN: 3.2 UPLOAD IDEAL ANSWERS (EXCEL) ---
+@app.post("/admin/test/{test_id}/upload-ideal-answers")
+async def upload_ideal_answers(test_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
+    """
+    Upload ideal answers for existing questions.
+    Excel should have columns: task_id, ideal_status, ideal_explanation, ideal_error (optional)
+    Matches by task_id to existing questions and updates their ideal fields.
+    """
+    temp_file = f"temp_ideal_{file.filename}"
+    try:
+        # Save temp file
+        with open(temp_file, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        df = pd.read_excel(temp_file)
+        
+        # Validate required columns
+        if 'task_id' not in df.columns:
+            raise HTTPException(status_code=400, detail="Excel file must have a 'task_id' column")
+        if 'ideal_status' not in df.columns:
+            raise HTTPException(status_code=400, detail="Excel file must have an 'ideal_status' column")
+        
+        updated_count = 0
+        not_found = []
+        
+        for _, row in df.iterrows():
+            task_id = str(row['task_id']) if pd.notna(row.get('task_id')) else None
+            if not task_id:
+                continue
+            
+            # Find the question by task_id and test_id
+            question = db.query(models.Question).filter(
+                models.Question.test_id == test_id,
+                models.Question.task_id == task_id
+            ).first()
+            
+            if question:
+                # Update ideal fields
+                question.ideal_status = str(row.get('ideal_status', '')) if pd.notna(row.get('ideal_status')) else ''
+                question.ideal_explanation = str(row.get('ideal_explanation', '')) if pd.notna(row.get('ideal_explanation')) else ''
+                question.ideal_error = str(row.get('ideal_error', '')) if pd.notna(row.get('ideal_error')) else ''
+                updated_count += 1
+            else:
+                not_found.append(task_id)
+        
+        db.commit()
+        
+        result = {"message": f"Updated ideal answers for {updated_count} questions"}
+        if not_found:
+            result["not_found"] = not_found[:10]  # Only show first 10
+            result["not_found_count"] = len(not_found)
+        
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        if os.path.exists(temp_file):
+            os.remove(temp_file)
 
 # --- ADMIN: 4. VIEW RESULTS ---
 @app.get("/admin/test/{test_id}/results")

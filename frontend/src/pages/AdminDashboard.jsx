@@ -4,7 +4,7 @@ import api from '../api';
 import {
     Plus, Upload, FileText, Users, Link, X, BarChart, LogOut, Trash2,
     Power, Eye, CheckCircle, Clock, HelpCircle, ChevronDown, ChevronUp,
-    FileSpreadsheet, AlertTriangle, Activity, Layers, Award
+    FileSpreadsheet, AlertTriangle, Activity, Layers, Award, Edit, Target
 } from 'lucide-react';
 import { useDispatch } from 'react-redux';
 import { logout } from '../store';
@@ -17,10 +17,13 @@ const AdminDashboard = () => {
     const [showQuestionsModal, setShowQuestionsModal] = useState(false);
     const [showResultsModal, setShowResultsModal] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [showIdealAnswerModal, setShowIdealAnswerModal] = useState(false);
     const [selectedTest, setSelectedTest] = useState(null);
     const [questions, setQuestions] = useState([]);
     const [results, setResults] = useState([]);
     const [newTest, setNewTest] = useState({ title: '', duration: 360 });
+    const [editTest, setEditTest] = useState({ title: '', duration: 360 });
     const [newTaskId, setNewTaskId] = useState('');
     const [newQuestionUrl, setNewQuestionUrl] = useState('');
     const [uploading, setUploading] = useState(false);
@@ -94,6 +97,61 @@ const AdminDashboard = () => {
             fetchTests();
         } finally {
             setActionLoading(null);
+        }
+    };
+
+    // Handle Edit Test - open modal with current values
+    const handleEditTest = (test) => {
+        setSelectedTest(test);
+        setEditTest({
+            title: test.title,
+            duration: test.duration_minutes
+        });
+        setShowEditModal(true);
+    };
+
+    // Handle Update Test - save changes
+    const handleUpdateTest = async () => {
+        if (!editTest.title) {
+            alert("Please enter a test title");
+            return;
+        }
+        setActionLoading('update');
+        try {
+            await api.put(`/admin/test/${selectedTest.id}`, {
+                title: editTest.title,
+                duration_minutes: parseInt(editTest.duration),
+                description: ""
+            });
+            setShowEditModal(false);
+            fetchTests();
+        } catch (err) {
+            alert("Failed to update test");
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    // Handle Upload Ideal Answers
+    const handleUploadIdealAnswers = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        setUploading(true);
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const res = await api.post(`/admin/test/${selectedTest.id}/upload-ideal-answers`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            alert(res.data.message + (res.data.not_found_count ? ` (${res.data.not_found_count} task IDs not found)` : ''));
+            setShowIdealAnswerModal(false);
+        } catch (err) {
+            alert("Upload failed: " + (err.response?.data?.detail || "Unknown error"));
+        } finally {
+            setUploading(false);
+            e.target.value = '';
         }
     };
 
@@ -348,6 +406,18 @@ const AdminDashboard = () => {
                                         className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition"
                                     >
                                         <Upload className="w-4 h-4" /> Upload Excel
+                                    </button>
+                                    <button
+                                        onClick={() => { setSelectedTest(test); setShowIdealAnswerModal(true); }}
+                                        className="flex items-center gap-2 px-4 py-2 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg text-sm font-medium transition"
+                                    >
+                                        <Target className="w-4 h-4" /> Ideal Answers
+                                    </button>
+                                    <button
+                                        onClick={() => handleEditTest(test)}
+                                        className="flex items-center gap-2 px-4 py-2 bg-amber-100 hover:bg-amber-200 text-amber-700 rounded-lg text-sm font-medium transition"
+                                    >
+                                        <Edit className="w-4 h-4" /> Edit
                                     </button>
                                     <button
                                         onClick={() => handleViewQuestions(test)}
@@ -663,6 +733,95 @@ const AdminDashboard = () => {
                                 {actionLoading === `delete-${showDeleteConfirm.id}` ? 'Deleting...' : 'Delete Test'}
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit Test Modal */}
+            {showEditModal && (
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white border border-amber-100 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-xl font-bold text-gray-800">Edit Test</h3>
+                            <button onClick={() => setShowEditModal(false)} className="text-gray-400 hover:text-gray-600">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Test Title</label>
+                                <input
+                                    type="text"
+                                    value={editTest.title}
+                                    onChange={(e) => setEditTest({ ...editTest, title: e.target.value })}
+                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition"
+                                    placeholder="Enter test title"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Duration (minutes)</label>
+                                <input
+                                    type="number"
+                                    value={editTest.duration}
+                                    onChange={(e) => setEditTest({ ...editTest, duration: e.target.value })}
+                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition"
+                                    placeholder="360"
+                                />
+                            </div>
+                        </div>
+                        <button
+                            onClick={handleUpdateTest}
+                            disabled={actionLoading === 'update'}
+                            className="w-full mt-6 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-medium transition disabled:opacity-50"
+                        >
+                            {actionLoading === 'update' ? 'Updating...' : 'Save Changes'}
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Upload Ideal Answers Modal */}
+            {showIdealAnswerModal && (
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white border border-purple-100 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-xl font-bold text-gray-800">Upload Ideal Answers</h3>
+                            <button onClick={() => setShowIdealAnswerModal(false)} className="text-gray-400 hover:text-gray-600">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-4">
+                            Upload an Excel file with ideal answers. File should have columns:
+                        </p>
+                        <ul className="text-sm text-gray-500 mb-4 bg-purple-50 p-3 rounded-lg space-y-1">
+                            <li><strong>task_id</strong> (required) - matches existing questions</li>
+                            <li><strong>ideal_status</strong> (required) - Success or Failure</li>
+                            <li><strong>ideal_explanation</strong> (optional) - explanation</li>
+                            <li><strong>ideal_error</strong> (optional) - critical error</li>
+                        </ul>
+                        <div className="border-2 border-dashed border-purple-200 rounded-xl p-6 bg-purple-50/50 hover:bg-purple-100/50 transition cursor-pointer text-center">
+                            <input
+                                type="file"
+                                accept=".xlsx,.xls"
+                                onChange={handleUploadIdealAnswers}
+                                className="hidden"
+                                id="ideal-file-input"
+                            />
+                            <label htmlFor="ideal-file-input" className="cursor-pointer">
+                                <Target className="w-10 h-10 text-purple-400 mx-auto mb-3" />
+                                {uploading ? (
+                                    <p className="text-purple-600 font-medium">Uploading...</p>
+                                ) : (
+                                    <>
+                                        <p className="text-purple-600 font-medium">Click to upload Excel file</p>
+                                        <p className="text-sm text-gray-400 mt-1">.xlsx or .xls supported</p>
+                                    </>
+                                )}
+                            </label>
+                        </div>
+                        <p className="text-xs text-center text-gray-400 mt-4">
+                            For test: <strong>{selectedTest?.title}</strong>
+                        </p>
                     </div>
                 </div>
             )}
