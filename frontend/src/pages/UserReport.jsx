@@ -115,7 +115,7 @@ const UserReport = () => {
                             </button>
                             <button
                                 onClick={() => {
-                                    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+                                    const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '');
                                     window.open(`${apiUrl}/admin/report/${sessionId}/download`, '_blank');
                                 }}
                                 className="flex items-center gap-2 px-6 py-2 rounded-lg font-medium shadow-lg transition bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-blue-500/25"
