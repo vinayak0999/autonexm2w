@@ -528,6 +528,109 @@ def get_user_report(session_id: int, db: Session = Depends(get_db)):
         ]
     }
 
+# --- ADMIN: 6.1 DOWNLOAD USER REPORT AS EXCEL ---
+from fastapi.responses import StreamingResponse
+import io
+
+@app.get("/admin/report/{session_id}/download")
+def download_report(session_id: int, db: Session = Depends(get_db)):
+    """Download user report as Excel file with accuracy calculations."""
+    
+    # Get session with user info
+    session_data = db.query(
+        models.TestSession.id,
+        models.User.username
+    ).join(
+        models.User, models.TestSession.user_id == models.User.id
+    ).filter(models.TestSession.id == session_id).first()
+    
+    if not session_data:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    # Get responses with questions
+    responses = db.query(
+        models.UserResponse.status,
+        models.UserResponse.explanation,
+        models.Question.task_id,
+        models.Question.ideal_status,
+        models.Question.ideal_explanation,
+        models.Question.ideal_error
+    ).join(
+        models.Question, models.UserResponse.question_id == models.Question.id
+    ).filter(models.UserResponse.session_id == session_id).all()
+    
+    # Build report data with accuracy calculations
+    report_data = []
+    
+    for r in responses:
+        # Normalize status for comparison
+        user_status = (r.status or "").strip().lower()
+        ideal_status = (r.ideal_status or "").strip().lower()
+        
+        # Normalize to success/failure
+        user_status_norm = "success" if user_status in ["success", "pass", "passed"] else "failure"
+        ideal_status_norm = "success" if ideal_status in ["success", "pass", "passed"] else "failure"
+        
+        # Calculate status accuracy (60 points)
+        status_match = user_status_norm == ideal_status_norm
+        task_status_accuracy = "60/60" if status_match else "0/60"
+        
+        # Calculate explanation accuracy (40 points) - for display only
+        # Uses keyword overlap as approximation
+        user_expl = (r.explanation or "").lower()
+        ideal_text = (r.ideal_error or r.ideal_explanation or "").lower()
+        
+        # Simple word overlap calculation
+        ideal_words = set(ideal_text.split())
+        user_words = set(user_expl.split())
+        
+        if ideal_words:
+            overlap = len(ideal_words & user_words) / len(ideal_words)
+            expl_score = int(40 * min(overlap * 1.5, 1.0))  # Scale up slightly
+        else:
+            expl_score = 40  # No ideal = full marks
+        
+        task_explanation_accuracy = f"{expl_score}/40"
+        
+        # MAIN LOGIC: Status correct = 100/100, Status wrong = 0/100
+        # Explanation does NOT affect overall accuracy
+        if status_match:
+            overall = 100  # Status correct = 100%
+        else:
+            overall = 0    # Status wrong = 0%
+        
+        overall_accuracy = f"{overall}/100"
+        
+        report_data.append({
+            "task_id": r.task_id or "",
+            "task_status": r.status or "",
+            "task_explanation": r.explanation or "",
+            "ideal_status": r.ideal_status or "",
+            "ideal_explanation": r.ideal_explanation or "",
+            "task_status_accuracy": task_status_accuracy,
+            "task_explanation_accuracy": task_explanation_accuracy,
+            "Overall_accuracy": overall_accuracy
+        })
+    
+    # Create DataFrame
+    df = pd.DataFrame(report_data)
+    
+    # Generate Excel file in memory
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Report')
+    output.seek(0)
+    
+    # Generate filename
+    username = session_data.username.replace("@", "_").replace(".", "_")
+    filename = f"{username}_Report.xlsx"
+    
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
 # --- ADMIN: 7. TRIGGER AI EVALUATION (BACKGROUND TASK) ---
 try:
     from .ai_agent import evaluate_single_answer

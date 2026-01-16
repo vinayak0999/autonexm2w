@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api';
-import { ArrowLeft, Play, ExternalLink, RefreshCw, Layers, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Play, ExternalLink, RefreshCw, Layers, CheckCircle, XCircle, AlertCircle, Download } from 'lucide-react';
 
 const UserReport = () => {
     const { sessionId } = useParams();
@@ -112,6 +112,16 @@ const UserReport = () => {
                             >
                                 <Play className="w-4 h-4" />
                                 {evaluating ? 'AI Grading in Progress...' : 'Evaluate with AI'}
+                            </button>
+                            <button
+                                onClick={() => {
+                                    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+                                    window.open(`${apiUrl}/admin/report/${sessionId}/download`, '_blank');
+                                }}
+                                className="flex items-center gap-2 px-6 py-2 rounded-lg font-medium shadow-lg transition bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-blue-500/25"
+                            >
+                                <Download className="w-4 h-4" />
+                                Download Report
                             </button>
                         </div>
                     </div>
